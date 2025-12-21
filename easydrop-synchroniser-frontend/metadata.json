@@ -1,0 +1,5 @@
+{
+  "name": "Inventory & CRM Connect Admin",
+  "description": "A comprehensive admin dashboard for managing shoe inventory and mapping products across multiple CRM systems with clean UI and real-time filtering.",
+  "requestFramePermissions": []
+}
