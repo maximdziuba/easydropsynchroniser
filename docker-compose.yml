@@ -19,6 +19,8 @@ services:
     build:
       context: ./easydrop-synchroniser-frontend
     container_name: frontend
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
     ports:
       - "80:80"
     depends_on:
