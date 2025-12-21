@@ -1,0 +1,13 @@
+requests
+python-dotenv
+pydantic
+fastapi
+uvicorn
+sqlalchemy
+apscheduler
+aiohttp
+certifi
+python-jose[cryptography]
+bcrypt==4.0.1
+passlib==1.7.4
+python-multipart
