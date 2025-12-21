@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./easydrop-synchroniser-backend
+    container_name: backend
+    environment:
+      - DATABASE_URL=sqlite:////app/data/easydrop.db
+      - SECRET_KEY=${SECRET_KEY:-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60
+    volumes:
+      - ./backend_data:/app/data
+    restart: always
+
+  frontend:
+    build:
+      context: ./easydrop-synchroniser-frontend
+    container_name: frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
