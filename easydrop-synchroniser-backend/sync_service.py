@@ -54,8 +54,8 @@ class SyncService:
                 source_items_list, target_items_list, source_sizes_list, target_sizes_list = results
 
                 # 3. Data Transformation
-                source_items_map = {item['id']: item for item in source_items_list}
-                target_items_map = {item['id']: item for item in target_items_list}
+                source_items_map = {int(item['id']): item for item in source_items_list}
+                target_items_map = {int(item['id']): item for item in target_items_list}
                 source_sizes_map = self._build_sizes_map(source_sizes_list)
                 target_sizes_map = self._build_sizes_map(target_sizes_list)
 
@@ -148,7 +148,11 @@ class SyncService:
         """
         sizes_map = {}
         for size in sizes_list:
-            item_id = size.get('item_id')
+            try:
+                item_id = int(size.get('item_id'))
+            except (ValueError, TypeError):
+                continue # Skip invalid IDs
+                
             val = str(size.get('val')) # Ensure string for key
             
             if item_id not in sizes_map:
