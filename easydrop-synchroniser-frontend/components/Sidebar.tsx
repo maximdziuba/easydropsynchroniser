@@ -1,46 +1,44 @@
 
 import React from 'react';
-import { Link2, Settings, LogOut, LayoutGrid } from 'lucide-react';
-import { ViewType } from '../types';
+import { Link, NavLink } from 'react-router-dom';
+import { Link2, Settings, LogOut, LayoutGrid, History } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-interface SidebarProps {
-  currentView: ViewType;
-  setView: (view: ViewType) => void;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ currentView, setView }) => {
+const Sidebar: React.FC = () => {
   const { logout } = useAuth();
   
   const menuItems = [
-    { id: 'mappings', label: 'Зв’язки', icon: Link2 },
-    { id: 'settings', label: 'Налаштування', icon: Settings },
+    { id: 'mappings', label: 'Зв’язки', icon: Link2, path: '/' },
+    { id: 'history', label: 'Історія', icon: History, path: '/history' },
+    { id: 'settings', label: 'Налаштування', icon: Settings, path: '/settings' },
   ];
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen fixed left-0 top-0">
       <div className="p-6">
-        <div className="flex items-center gap-2 text-blue-600 font-bold text-xl mb-8">
+        <Link to="/" className="flex items-center gap-2 text-blue-600 font-bold text-xl mb-8">
           <LayoutGrid size={28} />
           <span>СинхроАдмін</span>
-        </div>
+        </Link>
         
         <nav className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (
-              <button
+              <NavLink
                 key={item.id}
-                onClick={() => setView(item.id as ViewType)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                  currentView === item.id
+                to={item.path}
+                className={({ isActive }) => `
+                  w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors
+                  ${isActive
                     ? 'bg-blue-50 text-blue-600'
                     : 'text-gray-600 hover:bg-gray-50'
-                }`}
+                  }
+                `}
               >
                 <Icon size={20} />
                 {item.label}
-              </button>
+              </NavLink>
             );
           })}
         </nav>

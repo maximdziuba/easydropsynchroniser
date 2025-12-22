@@ -1,6 +1,7 @@
 import os
 import asyncio
 import time
+from datetime import datetime
 from typing import List, Dict, Any, Tuple
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
@@ -20,34 +21,29 @@ class SyncService:
     async def run_synchronization(self, db: Session):
         """
         Main async synchronization logic.
-        1. Fetch Mappings
-        2. Bulk Fetch Data (Source/Target Items & Sizes)
-        3. Build Maps
-        4. Compare & Queue Updates
-        5. Execute Updates
         """
         print("--- Starting High-Performance Async Synchronization ---")
         start_time = time.time()
+        db_start_time = datetime.now()
+        
+        # Track which mappings actually had changes
+        changed_mappings = []
 
-        if not self.source_api_key or not self.target_api_key:
-            print("Error: API Keys not found in environment.")
-            return
+        try:
+            if not self.source_api_key or not self.target_api_key:
+                raise Exception("API Keys not found in environment.")
 
-        # 1. Fetch Mappings
-        mappings = db.query(models_db.ProductMapping).all()
-        print(f"Loaded {len(mappings)} mappings from DB.")
-        if not mappings:
-            print("No mappings found. Exiting.")
-            return
+            # 1. Fetch Mappings
+            mappings = db.query(models_db.ProductMapping).all()
+            if not mappings:
+                print("No mappings found. Exiting.")
+                return
 
-        # 2. Bulk Fetch Data
-        async with AsyncClient(self.source_api_key, ssl=False) as source_client, \
-                   AsyncClient(self.target_api_key, ssl=False) as target_client:
-            
-            print("Fetching bulk data from Source and Target...")
-            
-            # Fetch everything in parallel
-            try:
+            # 2. Bulk Fetch Data
+            async with AsyncClient(self.source_api_key, ssl=False) as source_client, \
+                       AsyncClient(self.target_api_key, ssl=False) as target_client:
+                
+                # Fetch everything in parallel
                 results = await asyncio.gather(
                     source_client.get_all_items(),
                     target_client.get_all_items(),
@@ -56,101 +52,90 @@ class SyncService:
                 )
                 
                 source_items_list, target_items_list, source_sizes_list, target_sizes_list = results
+
+                # 3. Data Transformation
+                source_items_map = {item['id']: item for item in source_items_list}
+                target_items_map = {item['id']: item for item in target_items_list}
+                source_sizes_map = self._build_sizes_map(source_sizes_list)
+                target_sizes_map = self._build_sizes_map(target_sizes_list)
+
+                # 4. Compare logic
+                update_tasks = []
+                sem = asyncio.Semaphore(self.concurrency_limit)
                 
-                print(f"Fetched: {len(source_items_list)} source items, {len(target_items_list)} target items.")
-                print(f"Fetched: {len(source_sizes_list)} source sizes, {len(target_sizes_list)} target sizes.")
+                for mapping in mappings:
+                    s_id = mapping.source_id
+                    t_id = mapping.target_id
+                    mapping_has_changes = False
+                    mapping_changes_details = []
 
-            except Exception as e:
-                print(f"Error during bulk fetch: {e}")
-                return
+                    s_item = source_items_map.get(s_id)
+                    t_item = target_items_map.get(t_id)
 
-            # 3. Data Transformation (In-Memory Maps)
-            # Item Maps: ID -> Item Data
-            source_items_map = {item['id']: item for item in source_items_list}
-            target_items_map = {item['id']: item for item in target_items_list}
+                    if not s_item or not t_item:
+                        continue
 
-            # Size Maps: ItemID -> { SizeVal: SizeData }
-            source_sizes_map = self._build_sizes_map(source_sizes_list)
-            target_sizes_map = self._build_sizes_map(target_sizes_list)
+                    # Compare Item Level
+                    s_price = s_item.get('drop_price')
+                    s_nal = s_item.get('nal')
+                    t_price = t_item.get('drop_price')
+                    t_nal = t_item.get('nal')
 
-            # 4. Compare logic
-            update_tasks = []
-            
-            # Semaphore to control concurrency of updates
-            sem = asyncio.Semaphore(self.concurrency_limit)
+                    if s_price != t_price or s_nal != t_nal:
+                        update_tasks.append(self._bounded_update_item(sem, target_client, t_id, s_price, s_nal))
+                        mapping_has_changes = True
+                        if s_price != t_price:
+                            mapping_changes_details.append(f"Ціна: {t_price} -> {s_price}")
+                        if s_nal != t_nal:
+                            mapping_changes_details.append(f"Наявність: {t_nal} -> {s_nal}")
 
-            print("Analyzing differences...")
-            
-            for mapping in mappings:
-                s_id = mapping.source_id
-                t_id = mapping.target_id
+                    # Compare Size Level
+                    s_item_sizes = source_sizes_map.get(s_id, {})
+                    t_item_sizes = target_sizes_map.get(t_id, {})
 
-                # Get Objects
-                s_item = source_items_map.get(s_id)
-                t_item = target_items_map.get(t_id)
+                    for val, t_size_data in t_item_sizes.items():
+                        if val in s_item_sizes:
+                            s_qty = s_item_sizes[val]['qty']
+                            if t_size_data['qty'] != s_qty:
+                                update_tasks.append(self._bounded_update_size(sem, target_client, t_size_data['id'], val, s_qty))
+                                mapping_has_changes = True
+                                mapping_changes_details.append(f"Розмір {val}: {t_size_data['qty']} -> {s_qty}")
 
-                if not s_item:
-                    print(f"Warning: Source item {s_id} not found in fetched data.")
-                    continue
-                if not t_item:
-                    print(f"Warning: Target item {t_id} not found in fetched data.")
-                    continue
+                    if mapping_has_changes:
+                        changed_mappings.append({
+                            "mapping": mapping,
+                            "details": "; ".join(mapping_changes_details)
+                        })
 
-                # --- Compare Item Level (Price, Nal) ---
-                # Default to 0 if key missing, though spec implies fields exist
-                s_price = s_item.get('drop_price')
-                s_nal = s_item.get('nal')
-                
-                t_price = t_item.get('drop_price')
-                t_nal = t_item.get('nal')
+                # 5. Execute Updates
+                if update_tasks:
+                    print(f"Executing {len(update_tasks)} updates...")
+                    await asyncio.gather(*update_tasks)
+                    
+                    # Log each changed mapping
+                    db_end_time = datetime.now()
+                    for item in changed_mappings:
+                        m = item["mapping"]
+                        new_log = models_db.SyncLog(
+                            started_at=db_start_time,
+                            completed_at=db_end_time,
+                            status="SUCCESS",
+                            product_name=m.product_name,
+                            source_id=m.source_id,
+                            target_id=m.target_id,
+                            details=item["details"]
+                        )
+                        db.add(new_log)
+                    db.commit()
+                else:
+                    print("Sync complete. No changes detected.")
 
-                if s_price != t_price or s_nal != t_nal:
-                    print(f"Queuing Item Update: Target {t_id} (Price: {t_price}->{s_price}, Nal: {t_nal}->{s_nal})")
-                    update_tasks.append(
-                        self._bounded_update_item(sem, target_client, t_id, s_price, s_nal)
-                    )
-
-                # --- Compare Size Level ---
-                s_item_sizes = source_sizes_map.get(s_id, {})
-                t_item_sizes = target_sizes_map.get(t_id, {})
-
-                # Iterate through TARGET sizes to find matches in SOURCE
-                # We update Target sizes that exist. 
-                # (Assuming we don't create new sizes on Target, only update existing ones per spec "UPDATE Size Quantity")
-                for val, t_size_data in t_item_sizes.items():
-                    t_size_id = t_size_data['id']
-                    t_qty = t_size_data['qty']
-
-                    # Find matching size in source
-                    if val in s_item_sizes:
-                        s_qty = s_item_sizes[val]['qty']
-                        
-                        if t_qty != s_qty:
-                            print(f"Queuing Size Update: Target {t_id} Size {val} (Qty: {t_qty}->{s_qty})")
-                            update_tasks.append(
-                                self._bounded_update_size(sem, target_client, t_size_id, val, s_qty)
-                            )
-                    else:
-                        # Size exists in Target but not Source. 
-                        # Option: Set qty to 0? Or ignore? 
-                        # Usually for sync, if source doesn't have it, it might mean 0 stock.
-                        # However, strictly following "Update only if quantity is different" and "Match by val",
-                        # if it's not in source map, we can't be sure if it's missing or just 0.
-                        # If source map comes from "All Sizes", and it's missing, it effectively means it doesn't exist/0.
-                        # I will NOT update it to 0 unless explicitly told, to be safe. 
-                        # But standard logic implies sync = make same. 
-                        # The user prompt: "Synchronize Inventory... Source to Target".
-                        # I'll stick to updating only if I have a positive match to be safe.
-                        pass
-
-            # 5. Execute Updates
-            if update_tasks:
-                print(f"Executing {len(update_tasks)} updates...")
-                await asyncio.gather(*update_tasks)
-            else:
-                print("Sync complete. No updates needed.")
-
-        print(f"--- Synchronization Finished in {time.time() - start_time:.2f} seconds ---")
+        except Exception as e:
+            print(f"Synchronization failed: {e}")
+            # Optional: Log the overall failure if needed, but per-product logging is preferred
+            db.rollback()
+        finally:
+            print(f"--- Synchronization Finished in {time.time() - start_time:.2f} seconds ---")
 
     def _build_sizes_map(self, sizes_list: List[Dict[str, Any]]) -> Dict[int, Dict[str, Dict[str, Any]]]:
         """
@@ -179,4 +164,3 @@ class SyncService:
     async def _bounded_update_size(self, sem, client, size_id, val, qty):
         async with sem:
             await client.update_size_quantity(size_id, val, qty)
-

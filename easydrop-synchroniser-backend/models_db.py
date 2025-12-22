@@ -23,3 +23,15 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+
+class SyncLog(Base):
+    __tablename__ = "sync_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True))
+    status = Column(String)  # SUCCESS, FAILED
+    product_name = Column(String, nullable=True)
+    source_id = Column(Integer, nullable=True)
+    target_id = Column(Integer, nullable=True)
+    details = Column(String, nullable=True)

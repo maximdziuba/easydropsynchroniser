@@ -74,8 +74,13 @@ export const api = {
     const res = await axiosInstance.post('/change-password', data);
     return res.data;
   },
-  runSync: async () => {
-    const res = await axiosInstance.post('/sync/run');
-    return res.data;
-  },
-};
+    runSync: async () => {
+      const res = await axiosInstance.post('/sync/run');
+      return res.data;
+    },
+    getHistory: async (limit: number = 50) => {
+      const res = await axiosInstance.get(`/history?limit=${limit}`);
+      return res.data;
+    },
+  };
+  

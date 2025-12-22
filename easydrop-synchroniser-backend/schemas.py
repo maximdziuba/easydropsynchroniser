@@ -38,3 +38,16 @@ class User(UserBase):
 class PasswordChange(BaseModel):
     old_password: str
     new_password: str
+
+class SyncLog(BaseModel):
+    id: int
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    status: str
+    product_name: Optional[str] = None
+    source_id: Optional[int] = None
+    target_id: Optional[int] = None
+    details: Optional[str] = None
+
+    class Config:
+        from_attributes = True

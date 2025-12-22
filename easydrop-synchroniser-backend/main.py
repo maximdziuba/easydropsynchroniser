@@ -196,6 +196,15 @@ async def run_sync_manually(
     await sync_service.run_synchronization(db)
     return {"message": "Synchronization triggered successfully"}
 
+@app.get("/history", response_model=list[schemas.SyncLog])
+def get_history(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: models_db.User = Depends(auth.get_current_user)
+):
+    """Fetch synchronization history"""
+    return db.query(models_db.SyncLog).order_by(models_db.SyncLog.started_at.desc()).limit(limit).all()
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
