@@ -60,7 +60,8 @@ class SyncService:
                 target_sizes_map = self._build_sizes_map(target_sizes_list)
 
                 # 4. Compare logic
-                update_tasks = []
+                item_update_tasks = []
+                size_update_tasks = []
                 sem = asyncio.Semaphore(self.concurrency_limit)
                 
                 for mapping in mappings:
@@ -82,7 +83,7 @@ class SyncService:
                     t_nal = t_item.get('nal')
 
                     if s_price != t_price or s_nal != t_nal:
-                        update_tasks.append(self._bounded_update_item(sem, target_client, t_id, s_price, s_nal))
+                        item_update_tasks.append(self._bounded_update_item(sem, target_client, t_id, s_price, s_nal))
                         mapping_has_changes = True
                         if s_price != t_price:
                             mapping_changes_details.append(f"Ціна: {t_price} -> {s_price}")
@@ -97,7 +98,7 @@ class SyncService:
                         if val in s_item_sizes:
                             s_qty = s_item_sizes[val]['qty']
                             if t_size_data['qty'] != s_qty:
-                                update_tasks.append(self._bounded_update_size(sem, target_client, t_size_data['id'], val, s_qty))
+                                size_update_tasks.append(self._bounded_update_size(sem, target_client, t_size_data['id'], val, s_qty))
                                 mapping_has_changes = True
                                 mapping_changes_details.append(f"Розмір {val}: {t_size_data['qty']} -> {s_qty}")
 
@@ -107,10 +108,16 @@ class SyncService:
                             "details": "; ".join(mapping_changes_details)
                         })
 
-                # 5. Execute Updates
-                if update_tasks:
-                    print(f"Executing {len(update_tasks)} updates...")
-                    await asyncio.gather(*update_tasks)
+                # 5. Execute Updates Sequentially (Items first, then Sizes)
+                total_updates = len(item_update_tasks) + len(size_update_tasks)
+                if total_updates > 0:
+                    print(f"Executing {total_updates} updates (Items: {len(item_update_tasks)}, Sizes: {len(size_update_tasks)})...")
+                    
+                    if item_update_tasks:
+                        await asyncio.gather(*item_update_tasks)
+                    
+                    if size_update_tasks:
+                        await asyncio.gather(*size_update_tasks)
                     
                     # Log each changed mapping
                     db_end_time = datetime.now()
