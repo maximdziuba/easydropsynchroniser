@@ -11,6 +11,16 @@ def create_mapping(db: Session, mapping: schemas.ProductMappingCreate):
     db.refresh(db_mapping)
     return db_mapping
 
+def update_mapping(db: Session, mapping_id: int, mapping: schemas.ProductMappingUpdate):
+    db_mapping = db.query(models_db.ProductMapping).filter(models_db.ProductMapping.id == mapping_id).first()
+    if db_mapping:
+        update_data = mapping.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(db_mapping, key, value)
+        db.commit()
+        db.refresh(db_mapping)
+    return db_mapping
+
 def delete_mapping(db: Session, mapping_id: int):
     db_mapping = db.query(models_db.ProductMapping).filter(models_db.ProductMapping.id == mapping_id).first()
     if db_mapping:

@@ -157,6 +157,18 @@ def create_mapping(
 ):
     return crud.create_mapping(db, mapping=mapping)
 
+@app.put("/mappings/{mapping_id}", response_model=schemas.ProductMapping)
+def update_mapping(
+    mapping_id: int,
+    mapping: schemas.ProductMappingUpdate,
+    db: Session = Depends(get_db),
+    current_user: models_db.User = Depends(auth.get_current_user)
+):
+    db_mapping = crud.update_mapping(db, mapping_id, mapping)
+    if db_mapping is None:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return db_mapping
+
 @app.delete("/mappings/{mapping_id}")
 def delete_mapping(
     mapping_id: int, 

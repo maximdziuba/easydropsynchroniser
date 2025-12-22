@@ -10,6 +10,11 @@ class ProductMappingBase(BaseModel):
 class ProductMappingCreate(ProductMappingBase):
     pass
 
+class ProductMappingUpdate(BaseModel):
+    source_id: Optional[int] = None
+    target_id: Optional[int] = None
+    product_name: Optional[str] = None
+
 class ProductMapping(ProductMappingBase):
     id: int
     created_at: datetime
