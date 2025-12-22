@@ -2,6 +2,7 @@ import os
 import asyncio
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import List, Dict, Any, Tuple
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
@@ -24,7 +25,8 @@ class SyncService:
         """
         print("--- Starting High-Performance Async Synchronization ---")
         start_time = time.time()
-        db_start_time = datetime.now()
+        ukraine_tz = ZoneInfo("Europe/Kyiv")
+        db_start_time = datetime.now(ukraine_tz)
         
         # Track which mappings actually had changes
         changed_mappings = []
@@ -120,7 +122,7 @@ class SyncService:
                         await asyncio.gather(*size_update_tasks)
                     
                     # Log each changed mapping
-                    db_end_time = datetime.now()
+                    db_end_time = datetime.now(ukraine_tz)
                     for item in changed_mappings:
                         m = item["mapping"]
                         new_log = models_db.SyncLog(
