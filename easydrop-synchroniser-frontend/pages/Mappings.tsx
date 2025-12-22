@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ProductConnection, AppSettings } from '../types';
 import { api } from '../api';
-import { Plus, Search, Link2, Trash2 } from 'lucide-react';
+import { Plus, Search, Link2, Trash2, Edit } from 'lucide-react';
 import MappingModal from '../components/MappingModal';
 
 const Mappings: React.FC = () => {
@@ -9,6 +9,7 @@ const Mappings: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [editingMapping, setEditingMapping] = useState<ProductConnection | null>(null);
 
   useEffect(() => {
     loadMappings();
@@ -26,19 +27,34 @@ const Mappings: React.FC = () => {
     }
   };
 
-  const handleAddConnection = async (data: { sourceId: string; targetId: string; productName: string }) => {
+  const handleSaveConnection = async (data: { sourceId: string; targetId: string; productName: string }) => {
     try {
-      const newMapping = await api.createMapping({
-        source_id: parseInt(data.sourceId),
-        target_id: parseInt(data.targetId),
-        product_name: data.productName
-      });
-      setConnections([...connections, newMapping]);
+      if (editingMapping) {
+        const updatedMapping = await api.updateMapping(editingMapping.id, {
+          source_id: parseInt(data.sourceId),
+          target_id: parseInt(data.targetId),
+          product_name: data.productName
+        });
+        setConnections(connections.map(c => c.id === editingMapping.id ? updatedMapping : c));
+      } else {
+        const newMapping = await api.createMapping({
+          source_id: parseInt(data.sourceId),
+          target_id: parseInt(data.targetId),
+          product_name: data.productName
+        });
+        setConnections([...connections, newMapping]);
+      }
       setIsModalOpen(false);
+      setEditingMapping(null);
     } catch (e) {
-      alert("Failed to create connection");
+      alert("Failed to save connection");
       console.error(e);
     }
+  };
+
+  const handleEdit = (mapping: ProductConnection) => {
+    setEditingMapping(mapping);
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (id: number) => {
@@ -52,6 +68,11 @@ const Mappings: React.FC = () => {
       }
     }
   };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingMapping(null);
+  }
 
   const filteredConnections = connections.filter(
     (c) =>
@@ -68,7 +89,7 @@ const Mappings: React.FC = () => {
           <p className="text-gray-500 mt-1 text-sm">Керування відповідністю ідентифікаторів між двома CRM.</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => { setEditingMapping(null); setIsModalOpen(true); }}
           className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95"
         >
           <Plus size={18} />
@@ -119,13 +140,22 @@ const Mappings: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => handleDelete(conn.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                        title="Видалити зв’язок"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEdit(conn)}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          title="Редагувати зв’язок"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(conn.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Видалити зв’язок"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -147,8 +177,13 @@ const Mappings: React.FC = () => {
 
       <MappingModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onConnect={handleAddConnection}
+        onClose={handleCloseModal}
+        onConnect={handleSaveConnection}
+        initialData={editingMapping ? {
+          sourceId: editingMapping.source_id.toString(),
+          targetId: editingMapping.target_id.toString(),
+          productName: editingMapping.product_name || ''
+        } : null}
       />
     </>
   );

@@ -1,27 +1,37 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Link as LinkIcon } from 'lucide-react';
-import { ProductConnection } from '../types';
 
 interface MappingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConnect: (connection: { sourceId: string; targetId: string; productName: string }) => void;
+  initialData?: { sourceId: string; targetId: string; productName: string } | null;
 }
 
-const MappingModal: React.FC<MappingModalProps> = ({ isOpen, onClose, onConnect }) => {
+const MappingModal: React.FC<MappingModalProps> = ({ isOpen, onClose, onConnect, initialData }) => {
   const [formData, setFormData] = useState({
     sourceId: '',
     targetId: '',
     productName: '',
   });
 
+  useEffect(() => {
+    if (initialData) {
+      setFormData(initialData);
+    } else {
+      setFormData({ sourceId: '', targetId: '', productName: '' });
+    }
+  }, [initialData, isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onConnect(formData);
-    setFormData({ sourceId: '', targetId: '', productName: '' });
+    if (!initialData) {
+        setFormData({ sourceId: '', targetId: '', productName: '' });
+    }
   };
 
   return (
@@ -30,7 +40,7 @@ const MappingModal: React.FC<MappingModalProps> = ({ isOpen, onClose, onConnect 
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-center gap-2">
             <LinkIcon size={20} className="text-blue-600" />
-            <h2 className="text-lg font-bold text-gray-900">Новий зв’язок</h2>
+            <h2 className="text-lg font-bold text-gray-900">{initialData ? 'Редагувати зв’язок' : 'Новий зв’язок'}</h2>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg transition-colors">
             <X size={20} />

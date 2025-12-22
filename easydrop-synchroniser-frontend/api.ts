@@ -58,6 +58,10 @@ export const api = {
     const res = await axiosInstance.post('/mappings', data);
     return res.data;
   },
+  updateMapping: async (id: number, data: { source_id?: number; target_id?: number; product_name?: string }) => {
+    const res = await axiosInstance.put(`/mappings/${id}`, data);
+    return res.data;
+  },
   deleteMapping: async (id: number) => {
     const res = await axiosInstance.delete(`/mappings/${id}`);
     return res.data;
