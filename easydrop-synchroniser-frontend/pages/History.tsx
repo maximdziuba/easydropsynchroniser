@@ -12,17 +12,23 @@ const History: React.FC = () => {
 
   useEffect(() => {
     loadHistory();
+
+    const intervalId = setInterval(() => {
+      loadHistory(true);
+    }, 3000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
-  const loadHistory = async () => {
-    setIsLoading(true);
+  const loadHistory = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const data = await api.getHistory();
       setLogs(data);
     } catch (e) {
       console.error("Failed to load history", e);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
