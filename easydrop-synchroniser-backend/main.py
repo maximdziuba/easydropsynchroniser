@@ -185,9 +185,13 @@ def get_settings(
     db: Session = Depends(get_db),
     current_user: models_db.User = Depends(auth.get_current_user)
 ):
-    setting = crud.get_setting(db, "sync_interval")
-    interval = int(setting.value) if setting else 10
-    return schemas.SyncSettings(sync_interval=interval)
+    setting_interval = crud.get_setting(db, "sync_interval")
+    interval = int(setting_interval.value) if setting_interval else 10
+    
+    setting_last_run = crud.get_setting(db, "last_sync_run")
+    last_run = setting_last_run.value if setting_last_run else None
+
+    return schemas.SyncSettings(sync_interval=interval, last_sync_run=last_run)
 
 @app.post("/settings", response_model=schemas.SyncSettings)
 def update_settings(
@@ -206,6 +210,12 @@ async def run_sync_manually(
 ):
     """Manually trigger the sync process"""
     await sync_service.run_synchronization(db)
+    
+    # Reset the scheduler so the next auto-sync is relative to this manual run
+    setting = crud.get_setting(db, "sync_interval")
+    interval = int(setting.value) if setting else 10
+    reschedule_job(interval)
+    
     return {"message": "Synchronization triggered successfully"}
 
 @app.get("/history", response_model=list[schemas.SyncLog])

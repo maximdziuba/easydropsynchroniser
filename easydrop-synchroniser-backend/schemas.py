@@ -24,6 +24,7 @@ class ProductMapping(ProductMappingBase):
 
 class SyncSettings(BaseModel):
     sync_interval: int
+    last_sync_run: Optional[datetime] = None
 
     class Config:
         from_attributes = True

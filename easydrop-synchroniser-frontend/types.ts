@@ -11,6 +11,7 @@ export type ViewType = 'mappings' | 'settings' | 'history';
 
 export interface AppSettings {
   sync_interval: number; // in minutes
+  last_sync_run?: string;
 }
 
 export interface SyncLog {

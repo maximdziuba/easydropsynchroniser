@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from async_client import AsyncClient
 import models_db
+import crud
 
 # Load env variables
 load_dotenv()
@@ -27,6 +28,9 @@ class SyncService:
         start_time = time.time()
         ukraine_tz = ZoneInfo("Europe/Kyiv")
         db_start_time = datetime.now(ukraine_tz)
+
+        # Record last sync run time
+        crud.set_setting(db, "last_sync_run", db_start_time.isoformat())
         
         # Track which mappings actually had changes
         changed_mappings = []
